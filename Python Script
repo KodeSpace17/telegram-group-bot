@@ -1,0 +1,79 @@
+from telethon import TelegramClient, functions
+import asyncio
+import random
+
+api_id = 25975802
+api_hash = '98276307437d2a1e6b0ff1f2cdc847a9'
+
+welcome_messages = [
+    "Hello everyone! Discussion is now open! 🎉",
+    "Feel free to chat here!",
+    "Welcome! Drop your thoughts below.",
+    "Let's start the discussion!",
+    "Hi all! Chat away."
+]
+
+client = TelegramClient('channel_manager', api_id, api_hash)
+
+async def main():
+    # ✅ Create the broadcast channel once
+    channel_result = await client(functions.channels.CreateChannelRequest(
+        title='MyAutoChannel',
+        about='Channel with dynamic discussions',
+        megagroup=False
+    ))
+    channel = channel_result.chats[0]
+    print(f"📢 Created channel: {channel.title}")
+
+    # ✅ Loop: create discussion groups, link, send message, unlink
+    for i in range(1, 161):  # from 1 to 160
+        group_title = f'Discussion - {i}'
+        try:
+            # Create new discussion group
+            group_result = await client(functions.channels.CreateChannelRequest(
+                title=group_title,
+                about='Discussion group linked to channel',
+                megagroup=True
+            ))
+            group = group_result.chats[0]
+            print(f"✅ Created discussion group: {group.title}")
+
+            # Link it to the channel
+            await client(functions.channels.SetDiscussionGroupRequest(
+                broadcast=channel.id,
+                group=group.id
+            ))
+            print(f"🔗 Linked discussion group to channel")
+
+            # Wait a bit so Telegram backend syncs
+            await asyncio.sleep(3)
+
+            # Send welcome message
+            message = random.choice(welcome_messages)
+            await client.send_message(group.id, message)
+            print(f"📨 Sent welcome message: \"{message}\"")
+
+            # Short wait
+            await asyncio.sleep(2)
+
+            # Unlink the discussion group
+            await client(functions.channels.SetDiscussionGroupRequest(
+                broadcast=channel.id,
+                group=None
+            ))
+            print(f"🚫 Unlinked discussion group")
+
+        except Exception as e:
+            print(f"❌ Error at step {i}: {e}")
+            if "A wait of" in str(e) or "Flood" in str(e):
+                print("⚠️ Flood wait detected. Stopping script.")
+                break
+
+        # ✅ Wait 3 minutes before creating the next group
+        print(f"⏳ Waiting 3 minutes before next group...")
+        await asyncio.sleep(180)
+
+    print("✅ Finished creating all 160 groups!")
+
+with client:
+    client.loop.run_until_complete(main())
